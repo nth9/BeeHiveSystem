@@ -1,63 +1,27 @@
 #include <Arduino.h>
 #include <ps5Controller.h>
 
-// ==========================
-// Motor Pins & PWM Config
-// ==========================
+// Motor Pins
 #define L_IN1 27
 #define L_IN2 26
-#define L_EN  14  // PWM channel
+#define L_EN  14
 #define R_IN1 25
 #define R_IN2 33
-#define R_EN  32  // PWM channel
+#define R_EN  32
 
+// PWM Config
 const int MOTOR_FREQ = 30000;
-const int MOTOR_RESOLUTION = 8;   // 8-bit PWM (0–255)
-const int MAX_SPEED = 255;        // full speed
+const int MOTOR_RESOLUTION = 8;
+const int MAX_SPEED = 255;
+const int DEADZONE = 0.1;
 
-// ==========================
-// PWM Channels
-// ==========================
 const int L_PWM_CH = 0;
 const int R_PWM_CH = 1;
 
-// ==========================
-// Motor Control Functions
-// ==========================
-void forward() {
-  digitalWrite(L_IN1, HIGH);
-  digitalWrite(L_IN2, LOW);
-  digitalWrite(R_IN1, HIGH);
-  digitalWrite(R_IN2, LOW);
-  ledcWrite(L_PWM_CH, MAX_SPEED);
-  ledcWrite(R_PWM_CH, MAX_SPEED);
-}
-
-void backward() {
-  digitalWrite(L_IN1, LOW);
-  digitalWrite(L_IN2, HIGH);
-  digitalWrite(R_IN1, LOW);
-  digitalWrite(R_IN2, HIGH);
-  ledcWrite(L_PWM_CH, MAX_SPEED);
-  ledcWrite(R_PWM_CH, MAX_SPEED);
-}
-
-void turnCW() {
-  digitalWrite(L_IN1, HIGH);
-  digitalWrite(L_IN2, LOW);
-  digitalWrite(R_IN1, LOW);
-  digitalWrite(R_IN2, HIGH);
-  ledcWrite(L_PWM_CH, MAX_SPEED);
-  ledcWrite(R_PWM_CH, MAX_SPEED);
-}
-
-void turnCCW() {
-  digitalWrite(L_IN1, LOW);
-  digitalWrite(L_IN2, HIGH);
-  digitalWrite(R_IN1, HIGH);
-  digitalWrite(R_IN2, LOW);
-  ledcWrite(L_PWM_CH, MAX_SPEED);
-  ledcWrite(R_PWM_CH, MAX_SPEED);
+void setMotor(int in1, int in2, int pwm_ch, int speed, bool forward) {
+  digitalWrite(in1, forward ? HIGH : LOW);
+  digitalWrite(in2, forward ? LOW : HIGH);
+  ledcWrite(pwm_ch, speed);
 }
 
 void stopMotors() {
@@ -65,22 +29,17 @@ void stopMotors() {
   ledcWrite(R_PWM_CH, 0);
 }
 
-// ==========================
-// Setup
-// ==========================
 void setup() {
   Serial.begin(115200);
   ps5.attachOnConnect([](){ Serial.println("PS5 Connected."); });
   ps5.attachOnDisconnect([](){ Serial.println("PS5 Disconnected!"); });
-  ps5.begin("10:18:49:7D:6D:F4"); 
-  Serial.println("Waiting for PS5 Controller..."); // your ESP32 BT MAC
+  ps5.begin("10:18:49:7D:6D:F4");
 
   pinMode(L_IN1, OUTPUT);
   pinMode(L_IN2, OUTPUT);
   pinMode(R_IN1, OUTPUT);
   pinMode(R_IN2, OUTPUT);
 
-  // Configure PWM
   ledcSetup(L_PWM_CH, MOTOR_FREQ, MOTOR_RESOLUTION);
   ledcSetup(R_PWM_CH, MOTOR_FREQ, MOTOR_RESOLUTION);
   ledcAttachPin(L_EN, L_PWM_CH);
@@ -89,20 +48,25 @@ void setup() {
   stopMotors();
 }
 
-// ==========================
-// Main Loop
-// ==========================
 void loop() {
   if (ps5.isConnected()) {
-    float lx = ps5.LStickX(); // range -1.0 to +1.0
-    float ly = ps5.LStickY(); // range -1.0 to +1.0
+    float lx = ps5.LStickX(); // -1.0 to +1.0
+    float ly = -ps5.LStickY(); // invert Y for natural forward
 
     Serial.printf("LX: %.2f | LY: %.2f\n", lx, ly);
 
-    if (ly > 0.0f) forward();
-    else if (ly < 0.0f) backward();
-    else if (lx > 0.0f) turnCW();
-    else if (lx < 0.0f) turnCCW();
-    else stopMotors();
+    if (abs(ly) < DEADZONE && abs(lx) < DEADZONE) {
+      stopMotors();
+      return;
+    }
+
+    int leftSpeed = MAX_SPEED * constrain(ly + lx, -1.0, 1.0);
+    int rightSpeed = MAX_SPEED * constrain(ly - lx, -1.0, 1.0);
+
+    bool leftForward = leftSpeed >= 0;
+    bool rightForward = rightSpeed >= 0;
+
+    setMotor(L_IN1, L_IN2, L_PWM_CH, abs(leftSpeed), leftForward);
+    setMotor(R_IN1, R_IN2, R_PWM_CH, abs(rightSpeed), rightForward);
   }
 }
