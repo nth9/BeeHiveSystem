@@ -25,7 +25,7 @@ void setup() {
   updateLCD();
 
   // Start PS5 Controller
-  ps5.begin("01:02:03:04:05:06"); // <- replace with your ESP32 BT MAC
+  ps5.begin("10:18:49:7D:6D:F4"); 
 }
 
 void loop() {
