@@ -11,11 +11,19 @@ PI4_IP = "192.168.1.10"
 PI4_CMD_PORT = 5000   # Pi4 command listener
 PI5_IMG_PORT = 5001   # Pi5 image receiver
 
-def notify_pi4(hive, no):
+def notify_Front_pi4(hive, no):
     """Send command to Pi4 on port 5000."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((PI4_IP, PI4_CMD_PORT))
-        message = f"HIVE={hive},NO={no}"
+        message = f"Front,HIVE={hive},NO={no}"
+        s.sendall(message.encode("utf-8"))
+        print(f"Sent to Pi4: {message}")
+
+def notify_Back_pi4(hive, no):
+    """Send command to Pi4 on port 5000."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((PI4_IP, PI4_CMD_PORT))
+        message = f"Back,HIVE={hive},NO={no}"
         s.sendall(message.encode("utf-8"))
         print(f"Sent to Pi4: {message}")
 
@@ -61,7 +69,7 @@ def handle_uart_line(line):
         print(f"Triggering Capture_Bee_Front.py with hive={hive}, no={no}")
 
         # Send command to Pi4
-        notify_pi4(hive, no)
+        notify_Front_pi4(hive, no)
 
         # Run Pi5 capture script (Front)
         script_path = os.path.join(os.path.dirname(__file__), "Capture_Bee_Front.py")
@@ -86,7 +94,7 @@ def handle_uart_line(line):
         print(f"Triggering Capture_Bee_Front.py with hive={hive}, no={no}")
 
         # Send command to Pi4
-        notify_pi4(hive, no)
+        notify_Back_pi4(hive, no)
 
         # Run Pi5 capture script (Back)
         script_path = os.path.join(os.path.dirname(__file__), "Capture_Bee_Back.py")
