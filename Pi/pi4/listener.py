@@ -1,62 +1,77 @@
 import socket
 import subprocess
-import serial
-import threading
+import os
+import time
 
-ETH_IP = "10.10.10.2"
-PORT = 6000
+PI4_CMD_PORT = 5000
+PI5_IP = "192.168.1.20"   # Pi5 LAN IP
+PI5_IMG_PORT = 5001       # Pi5 image receiver port
 
-# --- UART setup (adjust /dev/ttyS0 or /dev/ttyUSB0 depending on your Pi) ---
-ser = serial.Serial("/dev/ttyS0", baudrate=9600, timeout=1)
+def preprocess_image(filename):
+    # Optional: run any preprocessing before sending
+    print(f"Preprocessing {filename}...")
+    return filename
 
-def handle(cmd):
-    cmd = cmd.strip()
-    if cmd.startswith("Capture Bee"):
-        # Example format: "Capture Bee,HIVE=3,NO=12"
-        parts = cmd.split(",")
-        hive = 0
-        no = 0
-        for p in parts:
-            if p.startswith("HIVE="):
-                hive = int(p.split("=")[1])
-            elif p.startswith("NO="):
-                no = int(p.split("=")[1])
+print(f"Pi4 listening on port {PI4_CMD_PORT}...")
 
-        # Call capture script with hive and no
-        subprocess.run([
-            "python3", "/usr/local/bin/Capture_Bee.py",
-            str(hive), str(no)
-        ])
-
-# --- Thread to read UART and forward to handler ---
-def uart_listener():
-    while True:
-        line = ser.readline().decode().strip()
-        if line:
-            # Convert "Hive=5 Station=2" into "Capture Bee,HIVE=5,NO=2"
-            if line.startswith("Hive="):
-                try:
-                    parts = line.split()
-                    hive = int(parts[0].split("=")[1])
-                    no   = int(parts[1].split("=")[1])
-                    cmd = f"Capture Bee,HIVE={hive},NO={no}"
-                    print(f"UART -> {cmd}")
-                    handle(cmd)
-                except Exception as e:
-                    print("Parse error:", e)
-
-# Start UART listener thread
-threading.Thread(target=uart_listener, daemon=True).start()
-
-# --- Socket server ---
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.bind((ETH_IP, PORT))
-    s.listen(1)
-    print(f"Listening on {ETH_IP}:{PORT} for 'Capture Bee' command...")
-
+    s.bind(("", PI4_CMD_PORT))
+    s.listen()
     while True:
-        conn, _ = s.accept()
+        conn, addr = s.accept()
         with conn:
-            data = conn.recv(1024)
+            print(f"Command connection from {addr}")
+            data = conn.recv(1024).decode("utf-8", errors="ignore").strip()
             if data:
-                handle(data.decode())
+                print(f"LAN received: {data}")
+                line = line.strip()
+                if line.startswith("Front"):
+                    parts = data.split(",")
+                    hive = int(parts[0].split("=")[1])
+                    no = int(parts[1].split("=")[1])
+                    
+                    # Run Pi5 capture script (Front)
+                    script_path = os.path.join(os.path.dirname(__file__), "Capture_Bee_Front.py")
+                    subprocess.run(["python3", script_path, str(hive), str(no)])
+
+                    # Step 3: pause before connecting back
+                    time.sleep(3)
+
+                    # Step 3: connect back to Pi5 on port 5001 and send
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_img:
+                        s_img.connect((PI5_IP, PI5_IMG_PORT))
+                        header = f"HIVE={hive},NO={no},FILENAME={filename}\n"
+                        s_img.sendall(header.encode("utf-8"))
+                        with open(filename, "rb") as f:
+                            while True:
+                                chunk = f.read(4096)
+                                if not chunk:
+                                    break
+                                s_img.sendall(chunk)
+                        print(f"Image {filename} sent to Pi5")
+                else if line.startswith("Back"):
+                    parts = data.split(",")
+                    hive = int(parts[0].split("=")[1])
+                    no = int(parts[1].split("=")[1])
+                    
+                    # Run Pi5 capture script (Front)
+                    script_path = os.path.join(os.path.dirname(__file__), "Capture_Bee_Back.py")
+                    subprocess.run(["python3", script_path, str(hive), str(no)])
+
+                    # Step 3: pause before connecting back
+                    time.sleep(3)
+
+                    # Step 3: connect back to Pi5 on port 5001 and send
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_img:
+                        s_img.connect((PI5_IP, PI5_IMG_PORT))
+                        header = f"HIVE={hive},NO={no},FILENAME={filename}\n"
+                        s_img.sendall(header.encode("utf-8"))
+                        with open(filename, "rb") as f:
+                            while True:
+                                chunk = f.read(4096)
+                                if not chunk:
+                                    break
+                                s_img.sendall(chunk)
+                        print(f"Image {filename} sent to Pi5")
+                except Exception as e:
+                    print(f"Error parsing or sending capture: {e}")
