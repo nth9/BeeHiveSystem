@@ -27,7 +27,7 @@ def notify_Back_pi4(hive, no):
         s.sendall(message.encode("utf-8"))
         print(f"Sent to Pi4: {message}")
 
-def wait_for_image(hive, no):
+def wait_for_image(hive, no, pos):
     """Wait for Pi4 to connect back and send image on port 5001."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_img:
         s_img.bind(("", PI5_IMG_PORT))
@@ -45,7 +45,7 @@ def wait_for_image(hive, no):
             header_str = header.decode("utf-8").strip()
             print(f"Header received: {header_str}")
 
-            save_path = f"Bee_Front_H{hive}_S{no}_FromPi4.jpg"
+            save_path = f"/home/bee-pi/bee_image/Bee_{pos}_H{hive}_S{no}_left.jpg"
             with open(save_path, "wb") as f:
                 while True:
                     chunk = conn.recv(4096)
@@ -58,6 +58,7 @@ def handle_uart_line(line):
     
     line = line.strip()
     if line.startswith("Capture Bee"):
+        pos = "Front"
         parts = line.split(",")
         hive, no = 0, 0
         for p in parts:
@@ -76,13 +77,14 @@ def handle_uart_line(line):
         subprocess.run(["python3", script_path, str(hive), str(no)])
         
         # Wait for image back
-        wait_for_image(hive, no)
+        wait_for_image(hive, no, pos)
         
         # Send command to esp32
         ser.write(b"SWEEP\n") 
         print("Sent 'SWEEP' to ESP32 via UART")
         
     if line.startswith("FINISH"):
+        pos = "Back"
     	parts = line.split(",")
         hive, no = 0, 0
         for p in parts:
@@ -91,7 +93,7 @@ def handle_uart_line(line):
             elif p.startswith("NO="):
                 no = int(p.split("=")[1])
 
-        print(f"Triggering Capture_Bee_Front.py with hive={hive}, no={no}")
+        print(f"Triggering Capture_Bee_Back.py with hive={hive}, no={no}")
 
         # Send command to Pi4
         notify_Back_pi4(hive, no)
@@ -101,7 +103,7 @@ def handle_uart_line(line):
         subprocess.run(["python3", script_path, str(hive), str(no)])
         
         # wait for image back
-        wait_for_image(hive, no)
+        wait_for_image(hive, no, pos)
         
 
 def main():
