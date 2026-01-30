@@ -64,7 +64,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     # Step 3: connect back to Pi5 on port 5001 and send
                     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_img:
                         s_img.connect((PI5_IP, PI5_IMG_PORT))
-                        header = f"HIVE={hive},NO={no},FILENAME=/home/bee-pi4/bee_image/{filename}\n"
+                        header = f"HIVE={hive},NO={no},FILENAME=/home/bee-pi4/bee_image/{filename}00*\n"
                         s_img.sendall(header.encode("utf-8"))
                         with open(filename, "rb") as f:
                             while True:
