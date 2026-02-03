@@ -6,7 +6,7 @@ from google.auth.transport.requests import Request
 import pickle
 
 # Configure these!
-FOLDER_PATH = 'images'  # Replace with your image folder path
+FOLDER_PATH = 'home/beepi/bee_images/combine'  # Replace with your image folder path
 DRIVE_FOLDER_ID = '1RAeiuc9nVkS1wE0EDTD5KLGfrelw7f1i'   # Optional: set to a specific Drive folder
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
@@ -39,4 +39,5 @@ def upload_images():
             print(f'Uploaded {filename}, file ID: {file.get("id")}')
 
 if __name__ == '__main__':
+
     upload_images()
