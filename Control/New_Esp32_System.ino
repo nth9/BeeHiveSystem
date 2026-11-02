@@ -167,16 +167,18 @@ void startScan(const char* type) {
               "HIVE:" + lastHive + " FRM:" + lastFrame, "Blue = scanning");
 }
 
-// Scan state machine — called every appTask iteration
+// Scan state machine
 void runScanState() {
     if (scanState == IDLE) return;
 
     unsigned long now = millis();
 
-    // Done states: hold result 5s then reset to IDLE so next scan can start
+    // Done states
     if (scanState == SCAN_DONE_OK || scanState == SCAN_DONE_ERROR) {
         if (now - stageStart > 5000) {
             resetRelays();
+            digitalWrite(RELAY_GREEN_PIN, HIGH);
+            blinkState = false;                  
             scanState = IDLE;
             lcdIdle();
         }
@@ -224,6 +226,7 @@ void runScanState() {
     }
 
     if (scanState == BACK_SCANNING && backFinished) {
+        backFinished = false;
         moveServosTogether(180, 0, 0, 180, 15);
         resetRelays();
         digitalWrite(RELAY_GREEN_PIN, HIGH);
